@@ -4,6 +4,8 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 use sdl2::Sdl;
 
+use crate::cpu;
+
 pub const WIDTH: u32 = 64;
 pub const HEIGHT: u32 = 32;
 const BLOCK_SIZE: u32 = 10;
@@ -65,16 +67,21 @@ impl UI {
             .fill_rect(Rect::new(x, y, BLOCK_SIZE, BLOCK_SIZE))
             .map_err(|e| e.to_string())
     }
-    pub fn refresh(&mut self, buffer: &ScreenType) -> Result<(), String> {
+    pub fn refresh(&mut self, cpu: &mut cpu::Cpu) -> Result<(), String> {
+        if !cpu.draw_flag {
+            return Ok(());
+        }
+
         self.canvas.clear();
 
-        for (y, v) in buffer.iter().enumerate() {
+        for (y, v) in cpu.get_screen().iter().enumerate() {
             for (x, p) in v.iter().enumerate() {
                 let _ = self.draw_point(p, (x as i32, y as i32))?;
             }
         }
 
         self.canvas.present();
+        cpu.draw_flag = false;
         Ok(())
     }
 }

@@ -1,3 +1,5 @@
+use std::{fs::File, io::Read};
+
 use log::info;
 use sdl2::pixels::Color;
 
@@ -57,7 +59,7 @@ impl Cpu {
             sound_timer: 0,
             graph: [[Point::default(); WIDTH as usize]; HEIGHT as usize],
 
-            pc: 0,
+            pc: 0x200,
             stack: [0_u16; 16],
             sp: 0,
             i: 0,
@@ -67,7 +69,7 @@ impl Cpu {
     }
     pub fn tick(&mut self) -> Result<(), String> {
         let opcode = self.fetch().ok_or("Fetch Error")?;
-        info!("Opcode : {}", opcode);
+        info!("Opcode : {:#X}", opcode);
 
         let _ = alu::execute(opcode, self)?;
         if self.delay_timer > 0 {
@@ -94,5 +96,19 @@ impl Cpu {
             ((*self.memory.get(self.pc as usize)? as u16) << 8)
                 | (*self.memory.get(self.pc as usize + 1)? as u16),
         )
+    }
+    pub fn load_rom(&mut self, rom_path: String) -> Result<(), String> {
+        for (i, &byte) in FONT_SET.iter().enumerate() {
+            self.memory[i] = byte;
+        }
+
+        let mut file = File::open(rom_path).map_err(|e| e.to_string())?;
+        let mut buf = Vec::new();
+        let _ = file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+
+        for (i, &byte) in buf.iter().enumerate() {
+            self.memory[i + 512] = byte;
+        }
+        Ok(())
     }
 }

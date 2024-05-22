@@ -8,6 +8,25 @@ pub struct Device {
     keyboard: EventPump,
 }
 
+const KEYMAP: [Keycode; 16] = [
+    Keycode::X,
+    Keycode::Num1,
+    Keycode::Num2,
+    Keycode::Num3,
+    Keycode::Q,
+    Keycode::W,
+    Keycode::E,
+    Keycode::A,
+    Keycode::S,
+    Keycode::D,
+    Keycode::Z,
+    Keycode::C,
+    Keycode::Num4,
+    Keycode::R,
+    Keycode::F,
+    Keycode::V,
+];
+
 impl Device {
     pub fn new(ui: &ui::UI) -> Result<Self, String> {
         Ok(Device {
@@ -27,6 +46,14 @@ impl Device {
                     ..
                 } => {
                     info!("Key Down: {}", keycode.to_string());
+                    for (i, k) in KEYMAP.iter().enumerate() {
+                        if keycode == *k {
+                            cpu.key[i] = 1;
+                        }
+                    }
+                }
+                Event::KeyUp { .. } => {
+                    cpu.key.iter_mut().for_each(|k| *k = 0);
                 }
                 _ => {}
             }

@@ -1,6 +1,5 @@
 use chip8_emu::{cpu, devices, ui};
 use clap::Parser;
-use log::info;
 use std::time::Duration;
 
 use env_logger;
@@ -21,11 +20,11 @@ pub fn main() -> Result<(), String> {
     let mut ui = ui::UI::new()?;
     let mut cpu = cpu::Cpu::new();
     let mut devices = devices::Device::new(&ui)?;
-    info!("Rom path: {}", args.rom_path);
+    cpu.load_rom(args.rom_path)?;
 
     loop {
-        // cpu.tick()?;
-        ui.refresh(cpu.get_screen())?;
+        cpu.tick()?;
+        ui.refresh(&mut cpu)?;
         let shutdown = devices.deal_keyboard(&mut cpu);
 
         if shutdown {
