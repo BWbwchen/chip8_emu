@@ -52,8 +52,15 @@ impl Device {
                         }
                     }
                 }
-                Event::KeyUp { .. } => {
-                    cpu.key.iter_mut().for_each(|k| *k = 0);
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    for (i, k) in KEYMAP.iter().enumerate() {
+                        if keycode == *k {
+                            cpu.key[i] = 0;
+                        }
+                    }
                 }
                 _ => {}
             }

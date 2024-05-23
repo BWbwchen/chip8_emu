@@ -64,7 +64,12 @@ impl UI {
     fn draw_point(&mut self, p: &Point, (x, y): (i32, i32)) -> Result<(), String> {
         self.canvas.set_draw_color(p.color);
         self.canvas
-            .fill_rect(Rect::new(x, y, BLOCK_SIZE, BLOCK_SIZE))
+            .fill_rect(Rect::new(
+                x * BLOCK_SIZE as i32,
+                y * BLOCK_SIZE as i32,
+                BLOCK_SIZE,
+                BLOCK_SIZE,
+            ))
             .map_err(|e| e.to_string())
     }
     pub fn refresh(&mut self, cpu: &mut cpu::Cpu) -> Result<(), String> {

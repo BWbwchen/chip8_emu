@@ -14,7 +14,7 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
                 // RET
                 // TODO: don't know why add 2
                 // and stack pointer's position
-                cpu.pc -= 1;
+                cpu.sp -= 1;
                 cpu.pc = cpu.stack[cpu.sp as usize];
                 cpu.pc += 2;
             } else {
@@ -78,7 +78,7 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
             // ADD Vx, byte
             let x = ((opcode & 0xF00) >> 8) as usize;
             let byte = (opcode & 0x00FF) as u8;
-            cpu.reg[x] += byte;
+            cpu.reg[x] = cpu.reg[x].wrapping_add(byte);
             cpu.pc += 2;
         }
         0x8000 => {
@@ -107,51 +107,46 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
                 }
                 0x4 => {
                     // 8xy4 - ADD Vx, Vy
-                    if cpu.reg[x] > (0xFF - cpu.reg[y]) {
+                    let (ans, ovf) = cpu.reg[x].overflowing_add(cpu.reg[y]);
+                    cpu.reg[x] = ans;
+                    if ovf {
                         cpu.reg[0xF] = 1;
                     } else {
                         cpu.reg[0xF] = 0;
                     }
-                    cpu.reg[x] += cpu.reg[y];
                     cpu.pc += 2;
                 }
                 0x5 => {
                     // 8xy5 - SUB Vx, Vy
-                    if cpu.reg[x] > cpu.reg[y] {
-                        cpu.reg[0xF] = 1;
-                    } else {
+                    let (ans, borrow) = cpu.reg[x].overflowing_sub(cpu.reg[y]);
+                    cpu.reg[x] = ans;
+                    if borrow {
                         cpu.reg[0xF] = 0;
+                    } else {
+                        cpu.reg[0xF] = 1;
                     }
-                    cpu.reg[x] -= cpu.reg[y];
                     cpu.pc += 2;
                 }
                 0x6 => {
                     // 8xy6 - SHR Vx {, Vy}
-                    if (cpu.reg[x] & 0x01) > 0 {
-                        cpu.reg[0xF] = 1;
-                    } else {
-                        cpu.reg[0xF] = 0;
-                    }
+                    cpu.reg[0xF] = cpu.reg[x] & 0x01;
                     cpu.reg[x] >>= 1;
                     cpu.pc += 2;
                 }
                 0x7 => {
                     // 8xy7 - SUBN Vx, Vy
-                    if cpu.reg[x] < cpu.reg[y] {
-                        cpu.reg[0xF] = 1;
-                    } else {
+                    let (ans, borrow) = cpu.reg[y].overflowing_sub(cpu.reg[x]);
+                    cpu.reg[x] = ans;
+                    if borrow {
                         cpu.reg[0xF] = 0;
+                    } else {
+                        cpu.reg[0xF] = 1;
                     }
-                    cpu.reg[x] = cpu.reg[y] - cpu.reg[x];
                     cpu.pc += 2;
                 }
                 0xE => {
                     // 8xyE - SHL Vx {, Vy}
-                    if (cpu.reg[x] & 0x80) > 0 {
-                        cpu.reg[0xF] = 1;
-                    } else {
-                        cpu.reg[0xF] = 0;
-                    }
+                    cpu.reg[0xF] = cpu.reg[x] >> 7;
                     cpu.reg[x] <<= 1;
                     cpu.pc += 2;
                 }
@@ -195,12 +190,12 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
             cpu.reg[0xF] = 0;
             for i in 0..n {
                 // row or each byte
-                let pixel = cpu.memory[cpu.i.saturating_add(i as u16) as usize];
+                let pixel = cpu.memory[cpu.i.wrapping_add(i as u16) as usize];
                 for b in 0..8 {
-                    if (pixel & (0x80 >> b)) > 0 {
+                    if (pixel & (0x80 >> b)) != 0 {
                         // need change
-                        let p = &mut cpu.graph[cpu.reg[y].saturating_add(i) as usize]
-                            [cpu.reg[x].saturating_add(b) as usize];
+                        let p = &mut cpu.graph[cpu.reg[y].wrapping_add(i) as usize]
+                            [cpu.reg[x].wrapping_add(b) as usize];
                         if p.cmp_color(Color::WHITE) {
                             cpu.reg[0xF] = 1;
                             p.set(Color::BLACK);
@@ -217,14 +212,14 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
             let x = ((opcode & 0x0F00) >> 8) as usize;
             if (opcode & 0x00FF) == 0x9E {
                 // Ex9E - SKP Vx
-                if cpu.key[cpu.reg[x] as usize] == 1 {
+                if cpu.key[cpu.reg[x] as usize] != 0 {
                     cpu.pc += 4;
                 } else {
                     cpu.pc += 2;
                 }
             } else if (opcode & 0x00FF) == 0xA1 {
                 // ExA1 - SKNP Vx
-                if cpu.key[cpu.reg[x] as usize] != 1 {
+                if cpu.key[cpu.reg[x] as usize] == 0 {
                     cpu.pc += 4;
                 } else {
                     cpu.pc += 2;
@@ -276,20 +271,20 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
                 }
                 0x29 => {
                     // Fx29 - LD F, Vx
-                    cpu.i = (cpu.reg[x] * 0x5) as u16;
+                    cpu.i = cpu.reg[x].wrapping_mul(0x5) as u16;
                     cpu.pc += 2;
                 }
                 0x33 => {
                     // Fx33 - LD B, Vx
                     cpu.memory[cpu.i as usize] = cpu.reg[x] / 100;
-                    cpu.memory[cpu.i.saturating_add(1) as usize] = (cpu.reg[x] / 10) % 10;
-                    cpu.memory[cpu.i.saturating_add(2) as usize] = cpu.reg[x] % 10;
+                    cpu.memory[cpu.i.wrapping_add(1) as usize] = (cpu.reg[x] / 10) % 10;
+                    cpu.memory[cpu.i.wrapping_add(2) as usize] = cpu.reg[x] % 10;
                     cpu.pc += 2;
                 }
                 0x55 => {
                     // Fx55 - LD [I], Vx
                     for i in 0..=x {
-                        cpu.memory[cpu.i.saturating_add(i as u16) as usize] = cpu.reg[i];
+                        cpu.memory[cpu.i.wrapping_add(i as u16) as usize] = cpu.reg[i];
                     }
                     cpu.i += x as u16 + 1;
                     cpu.pc += 2;
@@ -297,7 +292,7 @@ pub fn execute(opcode: u16, cpu: &mut cpu::Cpu) -> Result<(), String> {
                 0x65 => {
                     // Fx65 - LD Vx, [I]
                     for i in 0..=x {
-                        cpu.reg[i] = cpu.memory[cpu.i.saturating_add(i as u16) as usize];
+                        cpu.reg[i] = cpu.memory[cpu.i.wrapping_add(i as u16) as usize];
                     }
                     cpu.i += x as u16 + 1;
                     cpu.pc += 2;
